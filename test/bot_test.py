@@ -1,76 +1,78 @@
-import os
-
+from flask import Flask, request, jsonify
 from pymessenger.bot import Bot
-from pymessenger import Element, Button
 
-TOKEN = os.environ.get('TOKEN')
-APP_SECRET = os.environ.get('APP_SECRET')
+# Create a Flask app instance
+app = Flask(__name__)
 
-bot = Bot(TOKEN, app_secret=APP_SECRET)
+# Replace these with your actual token and app secret
+PAGE_ACCESS_TOKEN = 'EAAQXPDV1XqkBOyddsObpMtG6POEhgbwd7pV52OSq1bXGV6m0EeOijDXYbNpWZCeZCX6qZBDo9ZCrAZBG44o0dVyg9BhMZBPqLZC2QJZCstOcrv2iYEXzLiJvgcUy1IJsZC4Jked6wOv5a387lS53wrc3AJlZCnjPhswtZAUHP6gqNRWarTMVVH8JYDvZBp1HwypCfGjWohsk1S3GA6ICN7fG6AZDZD'
+APP_SECRET = 'd22af43dcf4eac983eef2fe854b61843'
+VERIFY_TOKEN = '12345'  # Use the same token set in the Facebook Developer Dashboard
 
-recipient_id = os.environ.get('RECIPIENT_ID')
+# Create a Bot instance
+bot = Bot(PAGE_ACCESS_TOKEN, app_secret=APP_SECRET)
 
+# Define the webhook endpoint to handle incoming messages
 
-def test_wrong_format_message():
-    result = bot.send_text_message(recipient_id, {'text': "its a test"})
-    assert type(result) is dict
-    assert result.get('message_id') is None
+@app.route('/webhook', methods=['POST'])
+def handle_webhook():
+    # Parse incoming JSON data
+    data = request.get_json()
 
-
-def test_text_message():
-    result = bot.send_text_message(recipient_id, "test")
-    assert type(result) is dict
-    assert result.get('message_id') is not None
-    assert result.get('recipient_id') is not None
-
-
-def test_elements():
-    image_url = 'https://lh4.googleusercontent.com/-dZ2LhrpNpxs/AAAAAAAAAAI/AAAAAAAA1os/qrf-VeTVJrg/s0-c-k-no-ns/photo.jpg'
-    elements = []
-    element = Element(title="Arsenal", image_url=image_url, subtitle="Click to go to Arsenal website.",
-                      item_url="http://arsenal.com")
-    elements.append(element)
-    result = bot.send_generic_message(recipient_id, elements)
-    assert type(result) is dict
-    assert result.get('message_id') is not None
-    assert result.get('recipient_id') is not None
-
-
-def test_image_url():
-    image_url = 'https://lh4.googleusercontent.com/-dZ2LhrpNpxs/AAAAAAAAAAI/AAAAAAAA1os/qrf-VeTVJrg/s0-c-k-no-ns/photo.jpg'
-    result = bot.send_image_url(recipient_id, image_url)
-    assert type(result) is dict
-    assert result.get('message_id') is not None
-    assert result.get('recipient_id') is not None
+    # Process each entry in the incoming data
+    for entry in data.get('entry', []):
+        messaging_events = entry.get('messaging', [])
+        for event in messaging_events:
+            sender_id = event['sender']['id']
+            if 'message' in event:
+                # Get the text of the incoming message
+                message_text = event['message']['text']
+                # Generate a response based on the incoming message
+                response = generate_response(message_text)
+                # Send the response back to the user
+                bot.send_text_message(sender_id, response)
     
-def test_image_gif_url():
-    image_url = 'https://media.giphy.com/media/rl0FOxdz7CcxO/giphy.gif'
-    result = bot.send_image_url(recipient_id, image_url)
-    assert type(result) is dict
-    assert result.get('message_id') is not None
-    assert result.get('recipient_id') is not None
+    # Return a status response
+    return jsonify({'status': 'ok'})
 
+# Define a function to generate a response based on the user's message
+def generate_response(message_text):
+    # Lowercase the message for case-insensitive processing
+    message_text = message_text.lower()
 
-def test_button_message():
-    buttons = []
-    button = Button(title='Arsenal', type='web_url', url='http://arsenal.com')
-    buttons.append(button)
-    button = Button(title='Other', type='postback', payload='other')
-    buttons.append(button)
-    text = 'Select'
-    result = bot.send_button_message(recipient_id, text, buttons)
-    assert type(result) is dict
-    assert result.get('message_id') is not None
-    assert result.get('recipient_id') is not None
+    # Define basic commands and their responses
+    commands = {
+        "hi": "Hello! How can I help you today?",
+        "hello": "Hi there! What can I do for you?",
+        "help": "You can ask me about the weather, news, or other services.",
+        "bye": "Goodbye! Have a great day!",
+    }
 
+    # Check if the message matches any predefined commands
+    if message_text in commands:
+        return commands[message_text]
 
-def test_fields_blank():
-    user_profile = bot.get_user_info(recipient_id)
-    assert user_profile is not None
+    # Default response if the message is not recognized
+    return "I'm sorry, I didn't understand that. Can you please rephrase your question?"
 
+# Verify the webhook during the initial setup with Facebook
+@app.route('/webhook', methods=['GET'])
+def verify_webhook():
+    # Get the mode and token from the query parameters
+    mode = request.args.get('hub.mode')
+    token = request.args.get('hub.verify_token')
+    challenge = request.args.get('hub.challenge')
 
-def test_fields():
-    fields = ['first_name', 'last_name']
-    user_profile = bot.get_user_info(recipient_id, fields=fields)
-    assert user_profile is not None
-    assert len(user_profile.keys()) == len(fields)
+    # Check if the mode and token are correct
+    if mode == 'subscribe' and token == VERIFY_TOKEN:
+        # Respond with the challenge token
+        return str(challenge)
+
+    # Return an error response if the verification fails
+    return jsonify({'status': 'error'}), 403
+
+# Run the Flask app on port 5000
+if __name__ == '__main__':
+    # Set the persistent menu before running the Flask app
+    
+    app.run(port=5000)
